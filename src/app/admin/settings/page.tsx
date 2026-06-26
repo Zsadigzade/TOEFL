@@ -14,7 +14,7 @@ const DEFAULT_SETTINGS = [
 ]
 
 export default async function SettingsPage() {
-  const supabase = await createServiceClient()
+  const supabase = createServiceClient()
   const { data: savedSettings } = await supabase.from('ai_settings').select('*')
 
   const mergedSettings = DEFAULT_SETTINGS.map((def) => {

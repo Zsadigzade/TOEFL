@@ -6,7 +6,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const supabase = await createServiceClient()
+  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('questions')
     .select('*, passage:passages(*)')
@@ -22,7 +22,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const supabase = await createServiceClient()
+  const supabase = createServiceClient()
   const body = await request.json()
 
   const { data, error } = await supabase
@@ -41,7 +41,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const supabase = await createServiceClient()
+  const supabase = createServiceClient()
   const { error } = await supabase.from('questions').delete().eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

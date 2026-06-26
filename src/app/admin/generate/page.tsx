@@ -3,7 +3,7 @@ import { GenerateForm } from '@/components/admin/GenerateForm'
 import { JobList } from '@/components/admin/JobList'
 
 export default async function GeneratePage() {
-  const supabase = await createServiceClient()
+  const supabase = createServiceClient()
 
   const [{ data: jobs }, { data: settings }] = await Promise.all([
     supabase

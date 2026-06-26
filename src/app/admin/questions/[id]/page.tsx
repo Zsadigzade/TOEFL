@@ -8,7 +8,7 @@ export default async function QuestionDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = await createServiceClient()
+  const supabase = createServiceClient()
 
   if (id === 'new') {
     return <QuestionEditor question={null} passages={[]} />

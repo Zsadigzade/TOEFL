@@ -21,7 +21,7 @@ export default async function QuestionsPage({
   searchParams: Promise<SearchParams>
 }) {
   const params = await searchParams
-  const supabase = await createServiceClient()
+  const supabase = createServiceClient()
   const page = parseInt(params.page ?? '1')
   const offset = (page - 1) * PAGE_SIZE
 

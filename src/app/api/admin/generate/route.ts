@@ -3,8 +3,10 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { generateQuestions } from '@/lib/ai/generator'
 import { Section, SubType, Difficulty } from '@/lib/types'
 
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
-  const supabase = await createServiceClient()
+  const supabase = createServiceClient()
   const body = await request.json()
 
   const { section, sub_type, topic, difficulty, count = 1 } = body as {
@@ -24,7 +26,7 @@ export async function POST(request: NextRequest) {
     .single()
 
   // Create job record
-  const { data: job } = await supabase
+  const { data: job, error: jobErr } = await supabase
     .from('generation_jobs')
     .insert({
       section,
@@ -36,6 +38,10 @@ export async function POST(request: NextRequest) {
     })
     .select()
     .single()
+
+  if (jobErr) {
+    return NextResponse.json({ error: `Failed to create job: ${jobErr.message}` }, { status: 500 })
+  }
 
   let generatedCount = 0
   let errorMessage: string | undefined
@@ -112,7 +118,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  const supabase = await createServiceClient()
+  const supabase = createServiceClient()
   const { data } = await supabase
     .from('generation_jobs')
     .select('*')

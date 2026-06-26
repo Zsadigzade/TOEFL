@@ -114,7 +114,8 @@ export async function generateQuestions(
     .map((b) => (b as { type: 'text'; text: string }).text)
     .join('')
 
-  const jsonText = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
+  const jsonMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/)
+  const jsonText = jsonMatch ? jsonMatch[1].trim() : rawText.trim()
   const parsed = JSON.parse(jsonText)
 
   const result: GenerationResult = {
@@ -154,7 +155,15 @@ export async function generateQuestions(
       },
     }))
   } else if (parsed.question_text) {
-    // Single question response
+    // Single question response (writing build-sentence, listening short-exchange, etc.)
+    const extra: Record<string, unknown> = {}
+    if (parsed.words_to_arrange) extra.words_to_arrange = parsed.words_to_arrange
+    if (parsed.context) extra.context = parsed.context
+    if (parsed.script) extra.script = parsed.script
+    if (parsed.professor_name) extra.professor_name = parsed.professor_name
+    if (parsed.sample_response_a) extra.sample_response_a = parsed.sample_response_a
+    if (parsed.sample_response_b) extra.sample_response_b = parsed.sample_response_b
+    if (parsed.scoring_criteria) extra.scoring_criteria = parsed.scoring_criteria
     result.questions = [
       {
         section: req.section,
@@ -166,12 +175,12 @@ export async function generateQuestions(
         difficulty: req.difficulty ?? 'medium',
         ai_generated: true,
         status: 'draft',
-        generation_metadata: { model, topic: req.topic },
+        generation_metadata: { model, topic: req.topic, ...extra },
       },
     ]
-  } else if (parsed.questions === undefined && parsed.topic_title) {
-    // Speaking interview
-    result.questions = (parsed.questions as Record<string, unknown>[] ?? []).map(
+  } else if (parsed.topic_title && Array.isArray(parsed.questions)) {
+    // Speaking interview — questions nested under topic_title root
+    result.questions = (parsed.questions as Record<string, unknown>[]).map(
       (q: Record<string, unknown>) => ({
         section: req.section,
         sub_type: req.sub_type,

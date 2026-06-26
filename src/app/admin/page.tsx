@@ -15,7 +15,7 @@ const SECTION_ICONS = {
 }
 
 export default async function AdminDashboard() {
-  const supabase = await createServiceClient()
+  const supabase = createServiceClient()
 
   const [questionsResult, jobsResult] = await Promise.all([
     supabase.from('questions').select('section, status'),
