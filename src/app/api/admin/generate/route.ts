@@ -62,11 +62,12 @@ export async function POST(request: NextRequest) {
       // Save passage if generated
       let passageId: string | null = null
       if (result.passage) {
-        const { data: savedPassage } = await supabase
+        const { data: savedPassage, error: passageErr } = await supabase
           .from('passages')
           .insert(result.passage)
           .select('id')
           .single()
+        if (passageErr) throw new Error(`Passage insert failed: ${passageErr.message}`)
         passageId = savedPassage?.id ?? null
       }
 
@@ -78,7 +79,8 @@ export async function POST(request: NextRequest) {
 
       if (questionsToSave.length > 0) {
         const { error: qErr } = await supabase.from('questions').insert(questionsToSave)
-        if (!qErr) generatedCount += questionsToSave.length
+        if (qErr) throw new Error(`Question insert failed: ${qErr.message}`)
+        generatedCount += questionsToSave.length
       }
     }
 
