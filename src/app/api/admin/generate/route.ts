@@ -1,0 +1,121 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createServiceClient } from '@/lib/supabase/server'
+import { generateQuestions } from '@/lib/ai/generator'
+import { Section, SubType, Difficulty } from '@/lib/types'
+
+export async function POST(request: NextRequest) {
+  const supabase = await createServiceClient()
+  const body = await request.json()
+
+  const { section, sub_type, topic, difficulty, count = 1 } = body as {
+    section: Section
+    sub_type: SubType
+    topic?: string
+    difficulty?: Difficulty
+    count?: number
+  }
+
+  // Fetch custom settings if they exist
+  const settingId = `${section}_${sub_type === 'multiple_choice' ? 'mc' : sub_type === 'build_sentence' ? 'build' : sub_type === 'academic_discussion' ? 'discussion' : sub_type}`
+  const { data: customSettings } = await supabase
+    .from('ai_settings')
+    .select('*')
+    .eq('id', settingId)
+    .single()
+
+  // Create job record
+  const { data: job } = await supabase
+    .from('generation_jobs')
+    .insert({
+      section,
+      sub_type,
+      requested_count: count,
+      status: 'running',
+      started_at: new Date().toISOString(),
+      settings: { topic, difficulty, model: customSettings?.model ?? 'claude-sonnet-4-6' },
+    })
+    .select()
+    .single()
+
+  let generatedCount = 0
+  let errorMessage: string | undefined
+
+  try {
+    const results = await Promise.all(
+      Array.from({ length: count }).map(() =>
+        generateQuestions({
+          section,
+          sub_type,
+          topic,
+          difficulty,
+          count: section === 'reading' ? 5 : 3,
+          model: customSettings?.model,
+          temperature: customSettings?.temperature,
+          max_tokens: customSettings?.max_tokens,
+          custom_system_prompt: customSettings?.system_prompt,
+          custom_user_prompt: customSettings?.user_prompt_template,
+        }),
+      ),
+    )
+
+    for (const result of results) {
+      // Save passage if generated
+      let passageId: string | null = null
+      if (result.passage) {
+        const { data: savedPassage } = await supabase
+          .from('passages')
+          .insert(result.passage)
+          .select('id')
+          .single()
+        passageId = savedPassage?.id ?? null
+      }
+
+      // Save questions
+      const questionsToSave = result.questions.map((q) => ({
+        ...q,
+        passage_id: passageId,
+      }))
+
+      if (questionsToSave.length > 0) {
+        const { error: qErr } = await supabase.from('questions').insert(questionsToSave)
+        if (!qErr) generatedCount += questionsToSave.length
+      }
+    }
+
+    // Update job as completed
+    await supabase
+      .from('generation_jobs')
+      .update({
+        status: 'completed',
+        generated_count: generatedCount,
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', job?.id)
+
+    return NextResponse.json({ success: true, generated: generatedCount, job_id: job?.id })
+  } catch (err) {
+    errorMessage = err instanceof Error ? err.message : 'Unknown error'
+
+    await supabase
+      .from('generation_jobs')
+      .update({
+        status: 'failed',
+        error_message: errorMessage,
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', job?.id)
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
+  }
+}
+
+export async function GET() {
+  const supabase = await createServiceClient()
+  const { data } = await supabase
+    .from('generation_jobs')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  return NextResponse.json(data ?? [])
+}
