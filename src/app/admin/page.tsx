@@ -152,7 +152,7 @@ export default async function AdminDashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="mt-6 grid grid-cols-2 gap-4">
+      <div className="mt-6 grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Link
           href="/admin/generate"
           className="flex items-center gap-3 p-4 bg-blue-600/10 border border-blue-600/20 rounded-xl hover:bg-blue-600/20 transition-colors group"
@@ -173,6 +173,18 @@ export default async function AdminDashboard() {
             <p className="text-xs text-slate-400">Review, edit, approve</p>
           </div>
         </Link>
+        {draftQuestions > 0 && (
+          <Link
+            href="/admin/questions?status=draft"
+            className="flex items-center gap-3 p-4 bg-yellow-600/10 border border-yellow-600/20 rounded-xl hover:bg-yellow-600/20 transition-colors group"
+          >
+            <Clock className="w-5 h-5 text-yellow-400 group-hover:text-yellow-300" />
+            <div>
+              <p className="text-sm font-medium text-white">Review Drafts</p>
+              <p className="text-xs text-slate-400">{draftQuestions} awaiting approval</p>
+            </div>
+          </Link>
+        )}
       </div>
     </div>
   )

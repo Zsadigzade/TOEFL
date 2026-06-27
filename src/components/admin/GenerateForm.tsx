@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Section, SubType, Difficulty } from '@/lib/types'
 import { SECTION_LABELS, SUB_TYPE_LABELS } from '@/lib/utils'
 import { Sparkles, Loader2 } from 'lucide-react'
@@ -16,6 +17,7 @@ interface AISettingSummary {
 
 interface Props {
   settings: AISettingSummary[]
+  onGeneratingChange?: (generating: boolean) => void
 }
 
 const SUB_TYPES_BY_SECTION: Record<Section, { value: SubType; label: string }[]> = {
@@ -50,7 +52,7 @@ const TOPIC_SUGGESTIONS: Record<Section, string[]> = {
   ],
 }
 
-export function GenerateForm({ settings }: Props) {
+export function GenerateForm({ settings, onGeneratingChange }: Props) {
   const router = useRouter()
   const [section, setSection] = useState<Section>('reading')
   const [subType, setSubType] = useState<SubType>('multiple_choice')
@@ -58,7 +60,7 @@ export function GenerateForm({ settings }: Props) {
   const [difficulty, setDifficulty] = useState<Difficulty>('medium')
   const [count, setCount] = useState(1)
   const [generating, setGenerating] = useState(false)
-  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [result, setResult] = useState<{ success: boolean; message: string; generated?: number } | null>(null)
 
   const currentSetting = settings.find(
     (s) => s.section === section && s.sub_type === subType,
@@ -67,6 +69,7 @@ export function GenerateForm({ settings }: Props) {
   async function handleGenerate() {
     setGenerating(true)
     setResult(null)
+    onGeneratingChange?.(true)
 
     const res = await fetch('/api/admin/generate', {
       method: 'POST',
@@ -76,13 +79,16 @@ export function GenerateForm({ settings }: Props) {
 
     const data = await res.json()
 
-    if (res.ok) {
-      setResult({ success: true, message: `Generated ${data.generated} question(s) successfully.` })
+    if (res.ok && data.generated > 0) {
+      setResult({ success: true, message: `Generated ${data.generated} question(s) successfully.`, generated: data.generated })
       router.refresh()
+    } else if (res.ok && data.generated === 0) {
+      setResult({ success: false, message: 'Generation completed but no questions were saved. Check AI settings or try a different topic.' })
     } else {
       setResult({ success: false, message: data.error ?? 'Generation failed.' })
     }
     setGenerating(false)
+    onGeneratingChange?.(false)
   }
 
   return (
@@ -196,6 +202,14 @@ export function GenerateForm({ settings }: Props) {
               : 'bg-red-900/30 border border-red-800 text-red-400'
           }`}>
             {result.message}
+            {result.success && (
+              <Link
+                href="/admin/questions"
+                className="block mt-1.5 text-xs text-green-300 hover:text-white underline underline-offset-2"
+              >
+                View in Question Bank →
+              </Link>
+            )}
           </div>
         )}
 

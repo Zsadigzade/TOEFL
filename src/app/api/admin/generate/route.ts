@@ -104,6 +104,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (generatedCount === 0) {
+      throw new Error('AI response parsed successfully but no questions could be extracted. Check the prompt format.')
+    }
+
     // Update job as completed
     await supabase
       .from('generation_jobs')

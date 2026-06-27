@@ -7,6 +7,7 @@ import { CheckCircle2, XCircle, Loader2, Clock } from 'lucide-react'
 
 interface Props {
   jobs: GenerationJob[]
+  isGenerating?: boolean
 }
 
 const JOB_STATUS_CONFIG = {
@@ -16,7 +17,7 @@ const JOB_STATUS_CONFIG = {
   pending: { icon: Clock, color: 'text-slate-400', bg: 'bg-slate-800' },
 }
 
-export function JobList({ jobs: initialJobs }: Props) {
+export function JobList({ jobs: initialJobs, isGenerating = false }: Props) {
   const [jobs, setJobs] = useState<GenerationJob[]>(initialJobs)
 
   useEffect(() => {
@@ -25,7 +26,7 @@ export function JobList({ jobs: initialJobs }: Props) {
 
   useEffect(() => {
     const hasRunning = jobs.some((j) => j.status === 'running' || j.status === 'pending')
-    if (!hasRunning) return
+    if (!hasRunning && !isGenerating) return
 
     const interval = setInterval(async () => {
       try {
@@ -37,10 +38,10 @@ export function JobList({ jobs: initialJobs }: Props) {
       } catch {
         // silently ignore fetch errors during polling
       }
-    }, 4000)
+    }, 3000)
 
     return () => clearInterval(interval)
-  }, [jobs])
+  }, [jobs, isGenerating])
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">

@@ -36,3 +36,20 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json(data, { status: 201 })
 }
+
+export async function PATCH(request: NextRequest) {
+  const supabase = createServiceClient()
+  const { ids, status } = await request.json() as { ids: string[]; status: string }
+
+  if (!ids?.length || !status) {
+    return NextResponse.json({ error: 'ids and status required' }, { status: 400 })
+  }
+
+  const { error } = await supabase
+    .from('questions')
+    .update({ status, updated_at: new Date().toISOString() })
+    .in('id', ids)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ updated: ids.length })
+}

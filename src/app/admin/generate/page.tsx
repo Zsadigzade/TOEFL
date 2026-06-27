@@ -1,6 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server'
-import { GenerateForm } from '@/components/admin/GenerateForm'
-import { JobList } from '@/components/admin/JobList'
+import { GeneratePageClient } from '@/components/admin/GeneratePageClient'
 
 export default async function GeneratePage() {
   const supabase = createServiceClient()
@@ -23,10 +22,7 @@ export default async function GeneratePage() {
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <GenerateForm settings={settings ?? []} />
-        <JobList jobs={jobs ?? []} />
-      </div>
+      <GeneratePageClient initialJobs={jobs ?? []} settings={settings ?? []} />
     </div>
   )
 }
