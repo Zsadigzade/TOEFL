@@ -17,6 +17,7 @@ interface Setting {
 
 interface Props {
   settings: Setting[]
+  defaults: Setting[]
 }
 
 const MODELS = [
@@ -25,7 +26,7 @@ const MODELS = [
   'claude-haiku-4-5-20251001',
 ]
 
-export function AISettingsEditor({ settings: initialSettings }: Props) {
+export function AISettingsEditor({ settings: initialSettings, defaults }: Props) {
   const [settings, setSettings] = useState(initialSettings)
   const [expanded, setExpanded] = useState<string | null>(settings[0]?.id ?? null)
   const [saving, setSaving] = useState<string | null>(null)
@@ -35,6 +36,12 @@ export function AISettingsEditor({ settings: initialSettings }: Props) {
     setSettings((prev) =>
       prev.map((s) => (s.id === id ? { ...s, [key]: value } : s)),
     )
+  }
+
+  function resetToDefault(id: string) {
+    const def = defaults.find((d) => d.id === id)
+    if (!def) return
+    setSettings((prev) => prev.map((s) => (s.id === id ? { ...def } : s)))
   }
 
   async function saveSetting(setting: Setting) {
@@ -154,7 +161,15 @@ export function AISettingsEditor({ settings: initialSettings }: Props) {
                   />
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => resetToDefault(setting.id)}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                    title="Reset prompts and params to code defaults (does not save)"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Reset to defaults
+                  </button>
                   <button
                     onClick={() => saveSetting(setting)}
                     disabled={saving === setting.id}

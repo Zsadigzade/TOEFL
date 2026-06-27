@@ -5,6 +5,7 @@ export type JobStatus = 'pending' | 'running' | 'completed' | 'failed'
 
 export type SubType =
   | 'multiple_choice'
+  | 'short_exchange'
   | 'build_sentence'
   | 'academic_discussion'
   | 'interview'

@@ -21,8 +21,8 @@ interface Props {
 const SUB_TYPES_BY_SECTION: Record<Section, { value: SubType; label: string }[]> = {
   reading: [{ value: 'multiple_choice', label: 'Multiple Choice (with passage)' }],
   listening: [
-    { value: 'multiple_choice', label: 'Short Exchange' },
-    { value: 'multiple_choice', label: 'Academic Talk' },
+    { value: 'short_exchange', label: 'Short Exchange' },
+    { value: 'multiple_choice', label: 'Academic Talk (Lecture)' },
   ],
   writing: [
     { value: 'build_sentence', label: 'Build a Sentence' },

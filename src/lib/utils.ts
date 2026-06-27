@@ -28,7 +28,8 @@ export const SECTION_LABELS: Record<string, string> = {
 }
 
 export const SUB_TYPE_LABELS: Record<string, string> = {
-  multiple_choice: 'Multiple Choice',
+  multiple_choice: 'Academic Talk',
+  short_exchange: 'Short Exchange',
   build_sentence: 'Build a Sentence',
   academic_discussion: 'Academic Discussion',
   interview: 'Interview',

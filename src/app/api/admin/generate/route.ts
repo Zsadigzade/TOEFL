@@ -18,7 +18,13 @@ export async function POST(request: NextRequest) {
   }
 
   // Fetch custom settings if they exist
-  const settingId = `${section}_${sub_type === 'multiple_choice' ? 'mc' : sub_type === 'build_sentence' ? 'build' : sub_type === 'academic_discussion' ? 'discussion' : sub_type}`
+  const settingIdSuffix =
+    sub_type === 'multiple_choice' ? 'mc' :
+    sub_type === 'short_exchange' ? 'se' :
+    sub_type === 'build_sentence' ? 'build' :
+    sub_type === 'academic_discussion' ? 'discussion' :
+    sub_type
+  const settingId = `${section}_${settingIdSuffix}`
   const { data: customSettings } = await supabase
     .from('ai_settings')
     .select('*')
@@ -47,6 +53,12 @@ export async function POST(request: NextRequest) {
   let errorMessage: string | undefined
 
   try {
+    const innerCount =
+      section === 'reading' ? 5 :
+      sub_type === 'short_exchange' ? 1 :
+      3
+
+    let totalTokens = 0
     const results = await Promise.all(
       Array.from({ length: count }).map(() =>
         generateQuestions({
@@ -54,7 +66,7 @@ export async function POST(request: NextRequest) {
           sub_type,
           topic,
           difficulty,
-          count: section === 'reading' ? 5 : 3,
+          count: innerCount,
           model: customSettings?.model,
           temperature: customSettings?.temperature,
           max_tokens: customSettings?.max_tokens,
@@ -65,6 +77,8 @@ export async function POST(request: NextRequest) {
     )
 
     for (const result of results) {
+      totalTokens += result.tokens_used ?? 0
+
       // Save passage if generated
       let passageId: string | null = null
       if (result.passage) {
@@ -97,10 +111,11 @@ export async function POST(request: NextRequest) {
         status: 'completed',
         generated_count: generatedCount,
         completed_at: new Date().toISOString(),
+        settings: { topic, difficulty, model: customSettings?.model ?? 'claude-sonnet-4-6', tokens_used: totalTokens },
       })
       .eq('id', job?.id)
 
-    return NextResponse.json({ success: true, generated: generatedCount, job_id: job?.id })
+    return NextResponse.json({ success: true, generated: generatedCount, job_id: job?.id, tokens_used: totalTokens })
   } catch (err) {
     errorMessage = err instanceof Error ? err.message : 'Unknown error'
 

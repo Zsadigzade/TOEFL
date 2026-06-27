@@ -13,7 +13,7 @@ interface Props {
 
 const SUB_TYPES_BY_SECTION: Record<Section, SubType[]> = {
   reading: ['multiple_choice'],
-  listening: ['multiple_choice'],
+  listening: ['short_exchange', 'multiple_choice'],
   writing: ['build_sentence', 'academic_discussion'],
   speaking: ['interview'],
 }

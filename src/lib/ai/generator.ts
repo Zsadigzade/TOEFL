@@ -49,35 +49,35 @@ function interpolate(template: string, vars: Record<string, string | number>) {
   )
 }
 
-function getSystemPrompt(section: Section, sub_type: SubType): string {
+function buildVars(req: GenerationRequest): Record<string, string | number> {
+  return {
+    topic: req.topic ?? 'academic (choose an interesting topic)',
+    difficulty: req.difficulty ?? 'medium',
+    count: req.count ?? 3,
+    grammar_focus: 'mixed grammar structures (relative clauses, passive voice, conditionals)',
+    passage_content: req.passage_content ?? '',
+    question_type: 'mixed',
+  }
+}
+
+function getSystemPrompt(section: Section): string {
   if (section === 'reading') return READING_SYSTEM_PROMPT
   if (section === 'listening') return LISTENING_SYSTEM_PROMPT
   if (section === 'writing') return WRITING_SYSTEM_PROMPT
   return SPEAKING_SYSTEM_PROMPT
 }
 
-function getUserPrompt(req: GenerationRequest): string {
-  const vars = {
-    topic: req.topic ?? 'academic (choose an interesting topic)',
-    difficulty: req.difficulty ?? 'medium',
-    count: req.count ?? 3,
-    grammar_focus: req.topic ?? 'relative clauses',
-    passage_content: req.passage_content ?? '',
-    question_type: 'mixed',
-  }
-
+function getUserPrompt(req: GenerationRequest, vars: Record<string, string | number>): string {
   if (req.section === 'reading') {
     if (req.passage_content) return interpolate(READING_STANDALONE_TEMPLATE, vars)
     return interpolate(READING_PASSAGE_TEMPLATE, vars)
   }
 
   if (req.section === 'listening') {
-    if (req.sub_type === 'multiple_choice') {
-      if (req.topic?.includes('exchange') || (req.count ?? 3) === 1) {
-        return interpolate(LISTENING_SHORT_EXCHANGE_TEMPLATE, vars)
-      }
-      return interpolate(LISTENING_LECTURE_TEMPLATE, vars)
+    if (req.sub_type === 'short_exchange') {
+      return interpolate(LISTENING_SHORT_EXCHANGE_TEMPLATE, vars)
     }
+    return interpolate(LISTENING_LECTURE_TEMPLATE, vars)
   }
 
   if (req.section === 'writing') {
@@ -97,8 +97,11 @@ export async function generateQuestions(
     apiKey: process.env.ANTHROPIC_API_KEY!,
   })
 
-  const systemPrompt = req.custom_system_prompt ?? getSystemPrompt(req.section, req.sub_type)
-  const userPrompt = req.custom_user_prompt ?? getUserPrompt(req)
+  const vars = buildVars(req)
+  const systemPrompt = req.custom_system_prompt ?? getSystemPrompt(req.section)
+  const userPrompt = req.custom_user_prompt
+    ? interpolate(req.custom_user_prompt, vars)
+    : getUserPrompt(req, vars)
   const model = req.model ?? 'claude-sonnet-4-6'
 
   const message = await client.messages.create({
@@ -116,7 +119,13 @@ export async function generateQuestions(
 
   const jsonMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/)
   const jsonText = jsonMatch ? jsonMatch[1].trim() : rawText.trim()
-  const parsed = JSON.parse(jsonText)
+
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(jsonText)
+  } catch {
+    throw new Error(`AI returned invalid JSON for ${req.section}/${req.sub_type}. Preview: ${rawText.slice(0, 300)}`)
+  }
 
   const result: GenerationResult = {
     questions: [],
@@ -125,26 +134,29 @@ export async function generateQuestions(
     tokens_used: message.usage.input_tokens + message.usage.output_tokens,
   }
 
-  if (parsed.passage) {
+  const p = parsed as Record<string, unknown>
+
+  if (p.passage) {
+    const passage = p.passage as Record<string, unknown>
     result.passage = {
       section: req.section as 'reading' | 'listening',
-      title: parsed.passage.title,
-      content: parsed.passage.content,
-      word_count: parsed.passage.word_count,
-      topics: parsed.passage.topics,
+      title: passage.title as string | null,
+      content: passage.content as string,
+      word_count: passage.word_count as number | null,
+      topics: passage.topics as string[] | null,
       source: 'ai_generated',
       status: 'draft',
     }
   }
 
-  if (parsed.questions) {
-    result.questions = parsed.questions.map((q: Record<string, unknown>) => ({
+  if (Array.isArray(p.questions) && !p.topic_title) {
+    result.questions = (p.questions as Record<string, unknown>[]).map((q) => ({
       section: req.section,
       sub_type: req.sub_type,
       question_text: q.question_text as string,
-      options: q.options ?? null,
-      correct_answer: q.correct_answer ?? null,
-      explanation: q.explanation ?? null,
+      options: (q.options ?? null) as import('@/lib/types').Option[] | null,
+      correct_answer: (q.correct_answer ?? null) as string | null,
+      explanation: (q.explanation ?? null) as string | null,
       difficulty: req.difficulty ?? 'medium',
       ai_generated: true,
       status: 'draft',
@@ -154,44 +166,41 @@ export async function generateQuestions(
         question_type: q.question_type,
       },
     }))
-  } else if (parsed.question_text) {
-    // Single question response (writing build-sentence, listening short-exchange, etc.)
+  } else if (p.question_text) {
     const extra: Record<string, unknown> = {}
-    if (parsed.words_to_arrange) extra.words_to_arrange = parsed.words_to_arrange
-    if (parsed.context) extra.context = parsed.context
-    if (parsed.script) extra.script = parsed.script
-    if (parsed.professor_name) extra.professor_name = parsed.professor_name
-    if (parsed.sample_response_a) extra.sample_response_a = parsed.sample_response_a
-    if (parsed.sample_response_b) extra.sample_response_b = parsed.sample_response_b
-    if (parsed.scoring_criteria) extra.scoring_criteria = parsed.scoring_criteria
+    if (p.words_to_arrange) extra.words_to_arrange = p.words_to_arrange
+    if (p.context) extra.context = p.context
+    if (p.script) extra.script = p.script
+    if (p.professor_name) extra.professor_name = p.professor_name
+    if (p.sample_response_a) extra.sample_response_a = p.sample_response_a
+    if (p.sample_response_b) extra.sample_response_b = p.sample_response_b
+    if (p.scoring_criteria) extra.scoring_criteria = p.scoring_criteria
     result.questions = [
       {
         section: req.section,
         sub_type: req.sub_type,
-        question_text: parsed.question_text as string,
-        options: parsed.options ?? null,
-        correct_answer: parsed.correct_answer ?? null,
-        explanation: parsed.explanation ?? null,
+        question_text: p.question_text as string,
+        options: (p.options ?? null) as import('@/lib/types').Option[] | null,
+        correct_answer: (p.correct_answer ?? null) as string | null,
+        explanation: (p.explanation ?? null) as string | null,
         difficulty: req.difficulty ?? 'medium',
         ai_generated: true,
         status: 'draft',
         generation_metadata: { model, topic: req.topic, ...extra },
       },
     ]
-  } else if (parsed.topic_title && Array.isArray(parsed.questions)) {
-    // Speaking interview — questions nested under topic_title root
-    result.questions = (parsed.questions as Record<string, unknown>[]).map(
-      (q: Record<string, unknown>) => ({
-        section: req.section,
-        sub_type: req.sub_type,
-        question_text: q.question_text as string,
-        options: null,
-        correct_answer: null,
-        difficulty: req.difficulty ?? 'medium',
-        ai_generated: true,
-        status: 'draft',
-        generation_metadata: { model, topic: req.topic, question_type: q.question_type },
-      }),
+  } else if (p.topic_title && Array.isArray(p.questions)) {
+    result.questions = (p.questions as Record<string, unknown>[]).map((q) => ({
+      section: req.section,
+      sub_type: req.sub_type,
+      question_text: q.question_text as string,
+      options: null,
+      correct_answer: null,
+      difficulty: req.difficulty ?? 'medium',
+      ai_generated: true,
+      status: 'draft',
+      generation_metadata: { model, topic: req.topic, question_type: q.question_type },
+    }),
     )
   }
 

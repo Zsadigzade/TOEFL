@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { GenerationJob } from '@/lib/types'
 import { SECTION_LABELS, formatDate } from '@/lib/utils'
 import { CheckCircle2, XCircle, Loader2, Clock } from 'lucide-react'
@@ -15,7 +16,32 @@ const JOB_STATUS_CONFIG = {
   pending: { icon: Clock, color: 'text-slate-400', bg: 'bg-slate-800' },
 }
 
-export function JobList({ jobs }: Props) {
+export function JobList({ jobs: initialJobs }: Props) {
+  const [jobs, setJobs] = useState<GenerationJob[]>(initialJobs)
+
+  useEffect(() => {
+    setJobs(initialJobs)
+  }, [initialJobs])
+
+  useEffect(() => {
+    const hasRunning = jobs.some((j) => j.status === 'running' || j.status === 'pending')
+    if (!hasRunning) return
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/admin/generate')
+        if (res.ok) {
+          const data = await res.json()
+          setJobs(data)
+        }
+      } catch {
+        // silently ignore fetch errors during polling
+      }
+    }, 4000)
+
+    return () => clearInterval(interval)
+  }, [jobs])
+
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
       <h2 className="text-sm font-semibold text-white mb-4">Generation History</h2>
@@ -29,6 +55,7 @@ export function JobList({ jobs }: Props) {
           {jobs.map((job) => {
             const cfg = JOB_STATUS_CONFIG[job.status]
             const Icon = cfg.icon
+            const tokensUsed = (job.settings as unknown as Record<string, unknown> | null)?.tokens_used as number | undefined
             return (
               <div
                 key={job.id}
@@ -47,7 +74,8 @@ export function JobList({ jobs }: Props) {
                   </div>
                   {job.settings && (
                     <p className="text-xs text-slate-400 mt-0.5 truncate">
-                      {((job.settings as unknown) as Record<string, unknown>).topic as string || 'No topic specified'} · {((job.settings as unknown) as Record<string, unknown>).difficulty as string}
+                      {(job.settings as unknown as Record<string, unknown>).topic as string || 'No topic'} · {(job.settings as unknown as Record<string, unknown>).difficulty as string}
+                      {tokensUsed ? ` · ${tokensUsed.toLocaleString()} tokens` : ''}
                     </p>
                   )}
                   {job.error_message && (
